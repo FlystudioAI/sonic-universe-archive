@@ -98,6 +98,48 @@ export type Database = {
         }
         Relationships: []
       }
+      cached_external_songs: {
+        Row: {
+          access_count: number | null
+          album: string | null
+          artist: string
+          cached_at: string
+          duration_ms: number | null
+          external_id: string
+          id: string
+          last_accessed: string | null
+          metadata: Json | null
+          source: string
+          title: string
+        }
+        Insert: {
+          access_count?: number | null
+          album?: string | null
+          artist: string
+          cached_at?: string
+          duration_ms?: number | null
+          external_id: string
+          id?: string
+          last_accessed?: string | null
+          metadata?: Json | null
+          source: string
+          title: string
+        }
+        Update: {
+          access_count?: number | null
+          album?: string | null
+          artist?: string
+          cached_at?: string
+          duration_ms?: number | null
+          external_id?: string
+          id?: string
+          last_accessed?: string | null
+          metadata?: Json | null
+          source?: string
+          title?: string
+        }
+        Relationships: []
+      }
       genres: {
         Row: {
           created_at: string | null
@@ -398,6 +440,99 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      user_music_submissions: {
+        Row: {
+          admin_notes: string | null
+          album_title: string | null
+          artist_name: string
+          audio_url: string | null
+          bpm: number | null
+          contact_email: string | null
+          cover_art_url: string | null
+          created_at: string
+          description: string | null
+          duration_ms: number | null
+          energy_level: string | null
+          genres: string[] | null
+          id: string
+          instruments: string[] | null
+          key_mode: string | null
+          lyrics: string | null
+          mood: string | null
+          music_video_url: string | null
+          publishing_rights: string | null
+          record_label: string | null
+          release_date: string | null
+          song_key: string | null
+          submission_status: string | null
+          themes: string[] | null
+          title: string
+          updated_at: string
+          user_id: string | null
+          verified_by: string | null
+        }
+        Insert: {
+          admin_notes?: string | null
+          album_title?: string | null
+          artist_name: string
+          audio_url?: string | null
+          bpm?: number | null
+          contact_email?: string | null
+          cover_art_url?: string | null
+          created_at?: string
+          description?: string | null
+          duration_ms?: number | null
+          energy_level?: string | null
+          genres?: string[] | null
+          id?: string
+          instruments?: string[] | null
+          key_mode?: string | null
+          lyrics?: string | null
+          mood?: string | null
+          music_video_url?: string | null
+          publishing_rights?: string | null
+          record_label?: string | null
+          release_date?: string | null
+          song_key?: string | null
+          submission_status?: string | null
+          themes?: string[] | null
+          title: string
+          updated_at?: string
+          user_id?: string | null
+          verified_by?: string | null
+        }
+        Update: {
+          admin_notes?: string | null
+          album_title?: string | null
+          artist_name?: string
+          audio_url?: string | null
+          bpm?: number | null
+          contact_email?: string | null
+          cover_art_url?: string | null
+          created_at?: string
+          description?: string | null
+          duration_ms?: number | null
+          energy_level?: string | null
+          genres?: string[] | null
+          id?: string
+          instruments?: string[] | null
+          key_mode?: string | null
+          lyrics?: string | null
+          mood?: string | null
+          music_video_url?: string | null
+          publishing_rights?: string | null
+          record_label?: string | null
+          release_date?: string | null
+          song_key?: string | null
+          submission_status?: string | null
+          themes?: string[] | null
+          title?: string
+          updated_at?: string
+          user_id?: string | null
+          verified_by?: string | null
+        }
+        Relationships: []
       }
       user_profiles: {
         Row: {

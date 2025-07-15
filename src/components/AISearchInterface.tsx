@@ -79,25 +79,83 @@ const AISearchInterface: React.FC = () => {
 
     setIsLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke('ai-music-search', {
+      // First try federated search for comprehensive results
+      const { data: federatedData, error: federatedError } = await supabase.functions.invoke('federated-music-search', {
         body: {
           query,
-          userId: user?.id,
-          searchType: 'natural_language',
-          filters: {}
+          limit: 15,
+          sources: ['local', 'spotify', 'lastfm'],
+          cacheResults: true
         }
       });
 
-      if (error) throw error;
+      if (federatedError) {
+        console.warn('Federated search failed, falling back to AI search:', federatedError);
+        
+        // Fallback to AI search if federated search fails
+        const { data: aiData, error: aiError } = await supabase.functions.invoke('ai-music-search', {
+          body: {
+            query,
+            userId: user?.id,
+            searchType: 'natural_language',
+            filters: {}
+          }
+        });
 
-      setResults(data.songs || []);
-      setAnalysis(data.analysis || null);
-      setRecommendations(data.recommendations || []);
+        if (aiError) throw aiError;
 
-      toast({
-        title: "Search Complete",
-        description: `Found ${data.songs?.length || 0} songs matching your query`,
-      });
+        setResults(aiData.songs || []);
+        setAnalysis(aiData.analysis || null);
+        setRecommendations(aiData.recommendations || []);
+
+        toast({
+          title: "AI Search Complete",
+          description: `Found ${aiData.songs?.length || 0} songs using AI analysis`,
+        });
+      } else {
+        // Transform federated results to match our interface
+        const transformedResults = federatedData.results?.map((result: any) => ({
+          id: result.id,
+          title: result.title,
+          duration_ms: result.duration_ms,
+          release_date: null,
+          bpm: result.metadata?.bpm,
+          song_key: null,
+          key_mode: null,
+          energy_level: result.metadata?.energy_level,
+          mood: result.metadata?.mood,
+          lyrics: null,
+          themes: [],
+          instruments: [],
+          description: `Source: ${result.source}${result.cached ? ' (cached)' : ''}`,
+          albums: result.album ? { title: result.album, cover_art_url: result.metadata?.cover_art_url } : null,
+          song_artists: [{
+            role: 'performer',
+            artists: { name: result.artist, image_url: null }
+          }],
+          song_genres: result.metadata?.genres?.map((genre: string) => ({
+            is_primary: true,
+            genres: { name: genre }
+          })) || []
+        })) || [];
+
+        setResults(transformedResults);
+        setAnalysis({
+          searchTerms: [query],
+          genres: [],
+          moods: [],
+          energy: '',
+          searchIntent: 'federated_search',
+          instruments: [],
+          themes: []
+        });
+        setRecommendations([]);
+
+        toast({
+          title: "Search Complete",
+          description: `Found ${transformedResults.length} songs (${federatedData.metadata?.local_results || 0} local, ${federatedData.metadata?.external_results || 0} external)`,
+        });
+      }
     } catch (error) {
       console.error('Search error:', error);
       toast({

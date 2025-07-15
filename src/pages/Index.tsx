@@ -2,6 +2,7 @@ import Header from "@/components/Header";
 import FeaturedSection from "@/components/FeaturedSection";
 import AISearchInterface from "@/components/AISearchInterface";
 import DataImportInterface from "@/components/DataImportInterface";
+import MusicSubmissionForm from "@/components/MusicSubmissionForm";
 import Footer from "@/components/Footer";
 
 const Index = () => {
@@ -10,8 +11,9 @@ const Index = () => {
       <Header />
       <main>
         <FeaturedSection />
-        <div className="container mx-auto px-4 py-8">
+        <div className="container mx-auto px-4 py-8 space-y-8">
           <DataImportInterface />
+          <MusicSubmissionForm />
         </div>
       </main>
       <Footer />
