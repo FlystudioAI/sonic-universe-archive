@@ -1,6 +1,7 @@
 import { TrendingUp, Award, Clock, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import SongCard from "./SongCard";
+import AISearchInterface from "./AISearchInterface";
 
 const FeaturedSection = () => {
   const featuredSongs = [
@@ -78,7 +79,7 @@ const FeaturedSection = () => {
   return (
     <section className="py-12">
       <div className="container mx-auto px-4">
-        {/* Hero Section */}
+        {/* Hero Section with integrated AI Search */}
         <div className="text-center mb-12">
           <h1 className="text-4xl md:text-6xl font-bold bg-gradient-primary bg-clip-text text-transparent mb-4">
             Discover Your Next
@@ -88,6 +89,12 @@ const FeaturedSection = () => {
           <p className="text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
             Explore the world's most comprehensive music database with detailed information on every song ever recorded.
           </p>
+          
+          {/* Integrated AI Search Interface */}
+          <div className="mb-8">
+            <AISearchInterface />
+          </div>
+          
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Button variant="hero" size="xl">
               Start Exploring

@@ -8,7 +8,6 @@ const Index = () => {
     <div className="min-h-screen bg-gradient-hero">
       <Header />
       <main>
-        <AISearchInterface />
         <FeaturedSection />
       </main>
       <Footer />

@@ -121,16 +121,10 @@ const AISearchInterface: React.FC = () => {
   };
 
   return (
-    <div className="max-w-7xl mx-auto p-6 space-y-6">
+    <div className="max-w-4xl mx-auto space-y-6">
       {/* Search Interface */}
-      <Card className="border-primary/20 bg-gradient-to-br from-background to-muted/20">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Sparkles className="h-6 w-6 text-primary" />
-            AI Music Discovery
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
+      <Card className="border-primary/20 bg-gradient-to-br from-background to-muted/20 shadow-lg">
+        <CardContent className="pt-6">
           <form onSubmit={handleSearch} className="space-y-4">
             <div className="relative">
               <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
@@ -139,7 +133,7 @@ const AISearchInterface: React.FC = () => {
                 placeholder="Search for music naturally... 'upbeat songs for working out' or 'melancholic indie from the 2000s'"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                className="pl-10 pr-20 h-12 text-lg"
+                className="pl-10 pr-20 h-12 text-lg border-primary/30 focus:border-primary/50"
               />
               <div className="absolute right-2 top-2 flex gap-2">
                 <Button type="button" variant="ghost" size="sm">
@@ -153,7 +147,7 @@ const AISearchInterface: React.FC = () => {
             <Button 
               type="submit" 
               disabled={isLoading || !query.trim()}
-              className="w-full h-12 text-lg"
+              className="w-full h-12 text-lg bg-gradient-to-r from-primary to-accent hover:from-primary/90 hover:to-accent/90 shadow-md"
             >
               {isLoading ? (
                 <>
@@ -161,7 +155,10 @@ const AISearchInterface: React.FC = () => {
                   Searching...
                 </>
               ) : (
-                'Search Music'
+                <>
+                  <Sparkles className="mr-2 h-4 w-4" />
+                  Search Music
+                </>
               )}
             </Button>
           </form>
