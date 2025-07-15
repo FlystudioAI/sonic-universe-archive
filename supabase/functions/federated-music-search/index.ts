@@ -171,11 +171,14 @@ async function searchLocalDatabase(query: string, limit: number, semanticSearch:
       const allResults: SearchResult[] = [];
       for (const result of results) {
         if (result.status === 'fulfilled') {
+          console.log(`Search returned ${result.value.length} results`);
           allResults.push(...result.value);
         }
       }
       
+      console.log(`Total results before deduplication: ${allResults.length}`);
       searchResults = deduplicateResults(allResults);
+      console.log(`Total results after deduplication: ${searchResults.length}`);
     } else {
       // Fall back to simple keyword search
       searchResults = await searchByKeywords(query, limit);
@@ -602,13 +605,23 @@ function deduplicateResults(results: SearchResult[]): SearchResult[] {
   const seen = new Map<string, SearchResult>();
   
   for (const result of results) {
-    const key = `${result.title.toLowerCase()}_${result.artist.toLowerCase()}`;
+    // Use song ID as primary key for local results, title+artist for external
+    const key = result.source === 'local' 
+      ? result.id 
+      : `${result.title.toLowerCase().trim()}_${result.artist.toLowerCase().trim()}`;
     
-    if (!seen.has(key) || (seen.get(key)!.source !== 'local' && result.source === 'local')) {
+    if (!seen.has(key)) {
       seen.set(key, result);
+    } else {
+      // Prefer local results over external ones
+      const existing = seen.get(key)!;
+      if (existing.source !== 'local' && result.source === 'local') {
+        seen.set(key, result);
+      }
     }
   }
   
+  console.log(`Deduplicated from ${results.length} to ${seen.size} results`);
   return Array.from(seen.values());
 }
 
