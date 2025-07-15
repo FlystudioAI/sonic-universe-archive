@@ -1,6 +1,7 @@
 import Header from "@/components/Header";
 import FeaturedSection from "@/components/FeaturedSection";
 import AISearchInterface from "@/components/AISearchInterface";
+import DataImportInterface from "@/components/DataImportInterface";
 import Footer from "@/components/Footer";
 
 const Index = () => {
@@ -9,6 +10,9 @@ const Index = () => {
       <Header />
       <main>
         <FeaturedSection />
+        <div className="container mx-auto px-4 py-8">
+          <DataImportInterface />
+        </div>
       </main>
       <Footer />
     </div>
