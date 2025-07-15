@@ -1,5 +1,6 @@
 import Header from "@/components/Header";
 import FeaturedSection from "@/components/FeaturedSection";
+import AISearchInterface from "@/components/AISearchInterface";
 import Footer from "@/components/Footer";
 
 const Index = () => {
@@ -7,6 +8,7 @@ const Index = () => {
     <div className="min-h-screen bg-gradient-hero">
       <Header />
       <main>
+        <AISearchInterface />
         <FeaturedSection />
       </main>
       <Footer />

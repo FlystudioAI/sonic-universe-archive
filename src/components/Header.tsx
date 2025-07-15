@@ -1,11 +1,43 @@
-import { useState } from "react";
-import { Search, Music, Star, Crown, Menu, X } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Search, Music, Star, Crown, Menu, X, User, LogOut } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { supabase } from "@/integrations/supabase/client";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 const Header = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [user, setUser] = useState<any>(null);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    // Get current user
+    const getCurrentUser = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      setUser(session?.user);
+    };
+    getCurrentUser();
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      setUser(session?.user);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    navigate('/');
+  };
 
   return (
     <header className="sticky top-0 z-50 border-b border-border/50 bg-background/80 backdrop-blur-md">
@@ -50,14 +82,44 @@ const Header = () => {
 
           {/* CTA Buttons */}
           <div className="hidden md:flex items-center gap-3">
-            <Button variant="ghost" size="sm">
-              <Star className="h-4 w-4" />
-              Sign In
-            </Button>
-            <Button variant="premium" size="sm">
-              <Crown className="h-4 w-4" />
-              Go Premium
-            </Button>
+            {user ? (
+              <>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="sm">
+                      <User className="h-4 w-4" />
+                      Profile
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => navigate('/profile')}>
+                      <User className="h-4 w-4 mr-2" />
+                      Profile
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={handleSignOut}>
+                      <LogOut className="h-4 w-4 mr-2" />
+                      Sign Out
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                <Button variant="premium" size="sm">
+                  <Crown className="h-4 w-4" />
+                  Go Premium
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button variant="ghost" size="sm" onClick={() => navigate('/auth')}>
+                  <Star className="h-4 w-4" />
+                  Sign In
+                </Button>
+                <Button variant="premium" size="sm">
+                  <Crown className="h-4 w-4" />
+                  Go Premium
+                </Button>
+              </>
+            )}
           </div>
 
           {/* Mobile Menu Button */}
@@ -101,14 +163,29 @@ const Header = () => {
                 Reviews
               </a>
               <div className="flex gap-3 pt-4">
-                <Button variant="ghost" size="sm" className="flex-1">
-                  <Star className="h-4 w-4" />
-                  Sign In
-                </Button>
-                <Button variant="premium" size="sm" className="flex-1">
-                  <Crown className="h-4 w-4" />
-                  Go Premium
-                </Button>
+                {user ? (
+                  <>
+                    <Button variant="ghost" size="sm" className="flex-1" onClick={() => navigate('/profile')}>
+                      <User className="h-4 w-4" />
+                      Profile
+                    </Button>
+                    <Button variant="ghost" size="sm" className="flex-1" onClick={handleSignOut}>
+                      <LogOut className="h-4 w-4" />
+                      Sign Out
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Button variant="ghost" size="sm" className="flex-1" onClick={() => navigate('/auth')}>
+                      <Star className="h-4 w-4" />
+                      Sign In
+                    </Button>
+                    <Button variant="premium" size="sm" className="flex-1">
+                      <Crown className="h-4 w-4" />
+                      Go Premium
+                    </Button>
+                  </>
+                )}
               </div>
             </nav>
           </div>
