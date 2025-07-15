@@ -16,12 +16,14 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 const spotifyClientId = Deno.env.get('SPOTIFY_CLIENT_ID');
 const spotifyClientSecret = Deno.env.get('SPOTIFY_CLIENT_SECRET');
 const lastFmApiKey = Deno.env.get('LASTFM_API_KEY');
+const googleApiKey = Deno.env.get('GOOGLE_API_KEY');
 
 interface SearchRequest {
   query: string;
   limit?: number;
   sources?: string[]; // ['local', 'spotify', 'lastfm', 'musicbrainz']
   cacheResults?: boolean;
+  semanticSearch?: boolean; // New flag for semantic search
 }
 
 interface SearchResult {
@@ -48,7 +50,7 @@ serve(async (req) => {
   }
 
   try {
-    const { query, limit = 20, sources = ['local', 'spotify', 'lastfm'], cacheResults = true }: SearchRequest = await req.json();
+    const { query, limit = 20, sources = ['local', 'spotify', 'lastfm'], cacheResults = true, semanticSearch = true }: SearchRequest = await req.json();
 
     console.log(`Federated search for: "${query}" across sources: ${sources.join(', ')}`);
 
@@ -57,7 +59,7 @@ serve(async (req) => {
 
     // 1. Always search local database first (fastest)
     if (sources.includes('local')) {
-      searchPromises.push(searchLocalDatabase(query, Math.ceil(limit * 0.6))); // 60% from local
+      searchPromises.push(searchLocalDatabase(query, Math.ceil(limit * 0.6), semanticSearch)); // 60% from local
     }
 
     // 2. Search external APIs in parallel
@@ -130,54 +132,338 @@ serve(async (req) => {
   }
 });
 
-async function searchLocalDatabase(query: string, limit: number): Promise<SearchResult[]> {
-  console.log(`Searching local database for: "${query}"`);
+async function searchLocalDatabase(query: string, limit: number, semanticSearch: boolean = true): Promise<SearchResult[]> {
+  console.log(`Searching local database for: "${query}" (semantic: ${semanticSearch})`);
   
   try {
-    const { data: songs, error } = await supabase
-      .from('songs')
-      .select(`
-        id,
-        title,
-        duration_ms,
-        mood,
-        energy_level,
-        bpm,
-        albums(title, cover_art_url),
-        song_artists(
-          role,
-          artists(name, image_url)
-        ),
-        song_genres(
-          is_primary,
-          genres(name)
-        )
-      `)
-      .or(`title.ilike.%${query}%,albums.title.ilike.%${query}%`)
-      .limit(limit);
+    let searchResults: SearchResult[] = [];
 
-    if (error) throw error;
-
-    return (songs || []).map(song => ({
-      id: song.id,
-      title: song.title,
-      artist: song.song_artists?.[0]?.artists?.name || 'Unknown Artist',
-      album: song.albums?.title,
-      duration_ms: song.duration_ms,
-      source: 'local' as const,
-      cached: false,
-      metadata: {
-        mood: song.mood,
-        energy_level: song.energy_level,
-        bpm: song.bpm,
-        genres: song.song_genres?.map((sg: any) => sg.genres.name) || [],
-        cover_art_url: song.albums?.cover_art_url
+    if (semanticSearch && googleApiKey) {
+      // Use AI to understand the query context
+      const analysisResult = await analyzeSearchQuery(query);
+      console.log('Search analysis:', analysisResult);
+      
+      // Build contextual search queries
+      const searches: Promise<SearchResult[]>[] = [];
+      
+      // 1. Geographic/Cultural search - search by artist country, themes, genres
+      if (analysisResult.geographic || analysisResult.cultural) {
+        searches.push(searchByGeographicContext(query, analysisResult, limit));
       }
-    }));
+      
+      // 2. Artist-based search - search by artist name and origin
+      if (analysisResult.searchTerms) {
+        searches.push(searchByArtistContext(analysisResult.searchTerms, limit));
+      }
+      
+      // 3. Genre and mood-based search
+      if (analysisResult.genres || analysisResult.moods) {
+        searches.push(searchByGenreAndMood(analysisResult, limit));
+      }
+      
+      // 4. Fallback traditional search
+      searches.push(searchByKeywords(query, limit));
+      
+      // Execute all searches in parallel
+      const results = await Promise.allSettled(searches);
+      
+      // Combine and deduplicate results
+      const allResults: SearchResult[] = [];
+      for (const result of results) {
+        if (result.status === 'fulfilled') {
+          allResults.push(...result.value);
+        }
+      }
+      
+      searchResults = deduplicateResults(allResults);
+    } else {
+      // Fall back to simple keyword search
+      searchResults = await searchByKeywords(query, limit);
+    }
+
+    return searchResults.slice(0, limit);
   } catch (error) {
     console.error('Local search error:', error);
     return [];
   }
+}
+
+async function analyzeSearchQuery(query: string): Promise<any> {
+  try {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${googleApiKey}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{
+          parts: [{
+            text: `Analyze this music search query and determine the search intent. Return a JSON object with these fields:
+            - searchTerms: array of key search terms
+            - geographic: string if geographic location mentioned (e.g., "south africa", "brazil", "jamaica")
+            - cultural: string if cultural context mentioned (e.g., "african", "latin", "caribbean")
+            - genres: array of music genres that might be relevant
+            - moods: array of moods that might be relevant
+            - timeframe: string if time period mentioned (e.g., "90s", "modern", "classic")
+            - instruments: array of instruments mentioned
+            - artistNames: array of potential artist names
+            - searchIntent: primary intent (geographic, artist, genre, mood, cultural)
+            
+            Query: "${query}"
+            
+            Return only valid JSON, no explanation.`
+          }]
+        }],
+        generationConfig: { temperature: 0.3, maxOutputTokens: 800 }
+      })
+    });
+
+    const data = await response.json();
+    return JSON.parse(data.candidates[0].content.parts[0].text);
+  } catch (error) {
+    console.error('Error analyzing search query:', error);
+    return { searchTerms: [query], searchIntent: 'keyword' };
+  }
+}
+
+async function searchByGeographicContext(query: string, analysis: any, limit: number): Promise<SearchResult[]> {
+  const results: SearchResult[] = [];
+  
+  try {
+    // Search by artist country - need to do this with a proper join
+    if (analysis.geographic) {
+      const { data: artistsFromCountry } = await supabase
+        .from('artists')
+        .select('id')
+        .ilike('country', `%${analysis.geographic}%`);
+
+      if (artistsFromCountry && artistsFromCountry.length > 0) {
+        const artistIds = artistsFromCountry.map(a => a.id);
+        
+        const { data: songs } = await supabase
+          .from('songs')
+          .select(`
+            id, title, duration_ms, mood, energy_level, bpm,
+            albums(title, cover_art_url, record_label),
+            song_artists!inner(role, artists(name, image_url, country)),
+            song_genres(is_primary, genres(name))
+          `)
+          .in('song_artists.artist_id', artistIds)
+          .limit(limit);
+
+        if (songs) {
+          results.push(...formatSongResults(songs));
+        }
+      }
+    }
+
+    // Search by cultural themes and genres
+    if (analysis.cultural) {
+      const culturalGenres = getCulturalGenres(analysis.cultural);
+      if (culturalGenres.length > 0) {
+        const { data: genres } = await supabase
+          .from('genres')
+          .select('id')
+          .in('name', culturalGenres);
+
+        if (genres && genres.length > 0) {
+          const genreIds = genres.map(g => g.id);
+          
+          const { data: songs } = await supabase
+            .from('songs')
+            .select(`
+              id, title, duration_ms, mood, energy_level, bpm,
+              albums(title, cover_art_url),
+              song_artists(role, artists(name, image_url)),
+              song_genres!inner(is_primary, genres(name))
+            `)
+            .in('song_genres.genre_id', genreIds)
+            .limit(limit);
+
+          if (songs) {
+            results.push(...formatSongResults(songs));
+          }
+        }
+      }
+    }
+
+    // Search by themes array
+    const culturalThemes = getCulturalThemes(analysis.geographic || analysis.cultural);
+    if (culturalThemes.length > 0) {
+      const { data: songs } = await supabase
+        .from('songs')
+        .select(`
+          id, title, duration_ms, mood, energy_level, bpm,
+          albums(title, cover_art_url),
+          song_artists(role, artists(name, image_url)),
+          song_genres(is_primary, genres(name))
+        `)
+        .overlaps('themes', culturalThemes)
+        .limit(limit);
+
+      if (songs) {
+        results.push(...formatSongResults(songs));
+      }
+    }
+
+    // Search by record label for geographic context
+    if (analysis.geographic) {
+      const { data: songs } = await supabase
+        .from('songs')
+        .select(`
+          id, title, duration_ms, mood, energy_level, bpm,
+          albums!inner(title, cover_art_url, record_label),
+          song_artists(role, artists(name, image_url)),
+          song_genres(is_primary, genres(name))
+        `)
+        .ilike('albums.record_label', `%${analysis.geographic}%`)
+        .limit(limit);
+
+      if (songs) {
+        results.push(...formatSongResults(songs));
+      }
+    }
+  } catch (error) {
+    console.error('Geographic search error:', error);
+  }
+
+  return results;
+}
+
+async function searchByArtistContext(searchTerms: string[], limit: number): Promise<SearchResult[]> {
+  try {
+    const { data: songs } = await supabase
+      .from('songs')
+      .select(`
+        id, title, duration_ms, mood, energy_level, bpm,
+        albums(title, cover_art_url),
+        song_artists(role, artists(name, image_url, country)),
+        song_genres(is_primary, genres(name))
+      `)
+      .ilike('song_artists.artists.name', `%${searchTerms.join('%')}%`)
+      .limit(limit);
+
+    return songs ? formatSongResults(songs) : [];
+  } catch (error) {
+    console.error('Artist search error:', error);
+    return [];
+  }
+}
+
+async function searchByGenreAndMood(analysis: any, limit: number): Promise<SearchResult[]> {
+  try {
+    let songs: any[] = [];
+
+    // Search by mood
+    if (analysis.moods && analysis.moods.length > 0) {
+      const { data: moodSongs } = await supabase
+        .from('songs')
+        .select(`
+          id, title, duration_ms, mood, energy_level, bpm,
+          albums(title, cover_art_url),
+          song_artists(role, artists(name, image_url)),
+          song_genres(is_primary, genres(name))
+        `)
+        .in('mood', analysis.moods)
+        .limit(limit);
+
+      if (moodSongs) songs.push(...moodSongs);
+    }
+
+    // Search by genres
+    if (analysis.genres && analysis.genres.length > 0) {
+      const { data: genreData } = await supabase
+        .from('genres')
+        .select('id')
+        .in('name', analysis.genres);
+
+      if (genreData && genreData.length > 0) {
+        const genreIds = genreData.map(g => g.id);
+        
+        const { data: genreSongs } = await supabase
+          .from('songs')
+          .select(`
+            id, title, duration_ms, mood, energy_level, bpm,
+            albums(title, cover_art_url),
+            song_artists(role, artists(name, image_url)),
+            song_genres!inner(is_primary, genres(name))
+          `)
+          .in('song_genres.genre_id', genreIds)
+          .limit(limit);
+
+        if (genreSongs) songs.push(...genreSongs);
+      }
+    }
+
+    return songs.length > 0 ? formatSongResults(songs) : [];
+  } catch (error) {
+    console.error('Genre/mood search error:', error);
+    return [];
+  }
+}
+
+async function searchByKeywords(query: string, limit: number): Promise<SearchResult[]> {
+  try {
+    const { data: songs } = await supabase
+      .from('songs')
+      .select(`
+        id, title, duration_ms, mood, energy_level, bpm,
+        albums(title, cover_art_url),
+        song_artists(role, artists(name, image_url)),
+        song_genres(is_primary, genres(name))
+      `)
+      .or(`title.ilike.%${query}%,albums.title.ilike.%${query}%,song_artists.artists.name.ilike.%${query}%`)
+      .limit(limit);
+
+    return songs ? formatSongResults(songs) : [];
+  } catch (error) {
+    console.error('Keyword search error:', error);
+    return [];
+  }
+}
+
+function formatSongResults(songs: any[]): SearchResult[] {
+  return songs.map(song => ({
+    id: song.id,
+    title: song.title,
+    artist: song.song_artists?.[0]?.artists?.name || 'Unknown Artist',
+    album: song.albums?.title,
+    duration_ms: song.duration_ms,
+    source: 'local' as const,
+    cached: false,
+    metadata: {
+      mood: song.mood,
+      energy_level: song.energy_level,
+      bpm: song.bpm,
+      genres: song.song_genres?.map((sg: any) => sg.genres.name) || [],
+      cover_art_url: song.albums?.cover_art_url
+    }
+  }));
+}
+
+function getCulturalGenres(cultural: string): string[] {
+  const genreMap: { [key: string]: string[] } = {
+    'african': ['afrobeat', 'highlife', 'soukous', 'kwaito', 'amapiano', 'traditional african'],
+    'south african': ['kwaito', 'amapiano', 'maskandi', 'township jazz', 'afrikaans'],
+    'brazilian': ['samba', 'bossa nova', 'forró', 'mpb', 'tropicália'],
+    'jamaican': ['reggae', 'dancehall', 'ska', 'rocksteady', 'dub'],
+    'caribbean': ['calypso', 'soca', 'dancehall', 'reggae', 'zouk'],
+    'latin': ['salsa', 'bachata', 'merengue', 'cumbia', 'reggaeton'],
+    'indian': ['bollywood', 'classical indian', 'bhangra', 'qawwali'],
+    'arabic': ['traditional arabic', 'oud', 'maqam', 'middle eastern']
+  };
+
+  return genreMap[cultural.toLowerCase()] || [];
+}
+
+function getCulturalThemes(geographic: string): string[] {
+  const themeMap: { [key: string]: string[] } = {
+    'south africa': ['apartheid', 'freedom', 'ubuntu', 'township', 'mandela', 'rainbow nation'],
+    'brazil': ['carnival', 'rio', 'samba', 'favela', 'capoeira'],
+    'jamaica': ['rastafari', 'babylon', 'zion', 'roots', 'consciousness'],
+    'ireland': ['celtic', 'traditional', 'folk', 'irish ballad'],
+    'scotland': ['highland', 'bagpipes', 'celtic', 'traditional scottish']
+  };
+
+  return themeMap[geographic?.toLowerCase()] || [];
 }
 
 async function searchSpotify(query: string, limit: number): Promise<SearchResult[]> {
