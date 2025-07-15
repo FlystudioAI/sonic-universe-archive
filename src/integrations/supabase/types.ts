@@ -172,6 +172,147 @@ export type Database = {
           },
         ]
       }
+      music_charts: {
+        Row: {
+          album_name: string | null
+          artist_name: string
+          chart_date: string
+          chart_type: string
+          cover_art_url: string | null
+          created_at: string
+          external_id: string | null
+          id: string
+          metadata: Json | null
+          peak_position: number | null
+          position: number
+          previous_position: number | null
+          song_title: string
+          source_url: string | null
+          updated_at: string
+          weeks_on_chart: number | null
+        }
+        Insert: {
+          album_name?: string | null
+          artist_name: string
+          chart_date: string
+          chart_type: string
+          cover_art_url?: string | null
+          created_at?: string
+          external_id?: string | null
+          id?: string
+          metadata?: Json | null
+          peak_position?: number | null
+          position: number
+          previous_position?: number | null
+          song_title: string
+          source_url?: string | null
+          updated_at?: string
+          weeks_on_chart?: number | null
+        }
+        Update: {
+          album_name?: string | null
+          artist_name?: string
+          chart_date?: string
+          chart_type?: string
+          cover_art_url?: string | null
+          created_at?: string
+          external_id?: string | null
+          id?: string
+          metadata?: Json | null
+          peak_position?: number | null
+          position?: number
+          previous_position?: number | null
+          song_title?: string
+          source_url?: string | null
+          updated_at?: string
+          weeks_on_chart?: number | null
+        }
+        Relationships: []
+      }
+      music_news: {
+        Row: {
+          author: string | null
+          category: string | null
+          created_at: string
+          description: string | null
+          id: string
+          image_url: string | null
+          published_at: string
+          source: string
+          tags: string[] | null
+          title: string
+          updated_at: string
+          url: string
+        }
+        Insert: {
+          author?: string | null
+          category?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          image_url?: string | null
+          published_at: string
+          source: string
+          tags?: string[] | null
+          title: string
+          updated_at?: string
+          url: string
+        }
+        Update: {
+          author?: string | null
+          category?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          image_url?: string | null
+          published_at?: string
+          source?: string
+          tags?: string[] | null
+          title?: string
+          updated_at?: string
+          url?: string
+        }
+        Relationships: []
+      }
+      music_trends: {
+        Row: {
+          created_at: string
+          id: string
+          mentions_count: number | null
+          metadata: Json | null
+          sentiment_score: number | null
+          source: string
+          trend_date: string
+          trend_name: string
+          trend_type: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          mentions_count?: number | null
+          metadata?: Json | null
+          sentiment_score?: number | null
+          source: string
+          trend_date: string
+          trend_name: string
+          trend_type: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          mentions_count?: number | null
+          metadata?: Json | null
+          sentiment_score?: number | null
+          source?: string
+          trend_date?: string
+          trend_name?: string
+          trend_type?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       song_artists: {
         Row: {
           artist_id: string
