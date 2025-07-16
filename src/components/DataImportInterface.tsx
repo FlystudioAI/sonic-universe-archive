@@ -55,28 +55,92 @@ const DataImportInterface: React.FC = () => {
       color: "bg-blue-500"
     },
     {
-      name: "Beatles Albums",
-      description: "Import Beatles discography",
-      action: "import_artist_albums",
-      query: "The Beatles",
-      icon: Album,
+      name: "Japanese Music",
+      description: "Import Japanese artists and songs",
+      action: "search_and_import",
+      query: "japanese music",
+      icon: Music,
+      color: "bg-red-500"
+    },
+    {
+      name: "South African Music",
+      description: "Import South African artists and genres",
+      action: "search_and_import",
+      query: "south african music",
+      icon: Music,
+      color: "bg-yellow-500"
+    },
+    {
+      name: "Brazilian Music",
+      description: "Import Brazilian artists and bossa nova",
+      action: "search_and_import",
+      query: "brazilian music",
+      icon: Music,
       color: "bg-green-500"
     },
     {
-      name: "Rock Music",
-      description: "Search and import rock music",
+      name: "Electronic Music",
+      description: "Import electronic and dance music",
       action: "search_and_import",
-      query: "rock",
+      query: "electronic music",
       icon: Music,
       color: "bg-purple-500"
     },
     {
-      name: "80s Hits",
-      description: "Import popular 80s music",
+      name: "Hip Hop",
+      description: "Import hip hop and rap music",
       action: "search_and_import",
-      query: "80s hits",
+      query: "hip hop",
       icon: Music,
       color: "bg-orange-500"
+    },
+    {
+      name: "Classical Music",
+      description: "Import classical composers and pieces",
+      action: "search_and_import",
+      query: "classical music",
+      icon: Music,
+      color: "bg-indigo-500"
+    },
+    {
+      name: "Reggae Music",
+      description: "Import reggae and Caribbean music",
+      action: "search_and_import",
+      query: "reggae music",
+      icon: Music,
+      color: "bg-emerald-500"
+    },
+    {
+      name: "Afrobeat",
+      description: "Import African Afrobeat artists",
+      action: "search_and_import",
+      query: "afrobeat",
+      icon: Music,
+      color: "bg-amber-500"
+    },
+    {
+      name: "K-Pop",
+      description: "Import Korean pop music",
+      action: "search_and_import",
+      query: "k-pop",
+      icon: Music,
+      color: "bg-pink-500"
+    },
+    {
+      name: "Latin Music",
+      description: "Import Latin American music",
+      action: "search_and_import",
+      query: "latin music",
+      icon: Music,
+      color: "bg-rose-500"
+    },
+    {
+      name: "Folk Music",
+      description: "Import traditional folk music",
+      action: "search_and_import",
+      query: "folk music",
+      icon: Music,
+      color: "bg-teal-500"
     }
   ];
 
@@ -184,6 +248,77 @@ const DataImportInterface: React.FC = () => {
                   <div>• Rate-limited API calls</div>
                   <div>• Comprehensive metadata</div>
                 </div>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Database Access Info */}
+      <Card className="border-primary/20 bg-gradient-to-br from-background to-muted/20">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Database className="h-6 w-6 text-primary" />
+            Database Access & Manual Data Entry
+          </CardTitle>
+          <p className="text-muted-foreground">
+            How to access your Supabase database and add data manually
+          </p>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            <div className="p-4 bg-muted/50 rounded-lg">
+              <h4 className="font-semibold text-sm mb-2">Your Database Details</h4>
+              <div className="space-y-2 text-sm">
+                <div>
+                  <strong>Project ID:</strong> <code className="bg-muted px-2 py-1 rounded text-xs">ksrjbezddhxyozllycer</code>
+                </div>
+                <div>
+                  <strong>Database URL:</strong> <code className="bg-muted px-2 py-1 rounded text-xs">https://ksrjbezddhxyozllycer.supabase.co</code>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <h4 className="font-semibold text-sm">Access Methods</h4>
+                <div className="space-y-2 text-xs text-muted-foreground">
+                  <div>• <strong>SQL Editor:</strong> Use Supabase dashboard for direct SQL queries</div>
+                  <div>• <strong>API:</strong> REST API for programmatic access</div>
+                  <div>• <strong>Admin Panel:</strong> Table editor in Supabase dashboard</div>
+                  <div>• <strong>psql:</strong> Direct PostgreSQL connection</div>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <h4 className="font-semibold text-sm">Main Tables</h4>
+                <div className="space-y-2 text-xs text-muted-foreground">
+                  <div>• <strong>songs:</strong> Main song metadata</div>
+                  <div>• <strong>artists:</strong> Artist information</div>
+                  <div>• <strong>albums:</strong> Album details</div>
+                  <div>• <strong>genres:</strong> Music genres</div>
+                  <div>• <strong>song_artists:</strong> Song-artist relationships</div>
+                  <div>• <strong>user_music_submissions:</strong> User submissions</div>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-4 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
+              <h4 className="font-semibold text-sm mb-2 text-blue-900 dark:text-blue-100">Quick Access Links</h4>
+              <div className="space-y-1 text-xs">
+                <div>• <a href="https://supabase.com/dashboard/project/ksrjbezddhxyozllycer/editor" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">Table Editor</a> - View and edit data in tables</div>
+                <div>• <a href="https://supabase.com/dashboard/project/ksrjbezddhxyozllycer/sql/new" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">SQL Editor</a> - Run custom SQL queries</div>
+                <div>• <a href="https://supabase.com/dashboard/project/ksrjbezddhxyozllycer/api" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">API Documentation</a> - REST API reference</div>
+              </div>
+            </div>
+
+            <div className="p-4 bg-amber-50 dark:bg-amber-950/20 rounded-lg border border-amber-200 dark:border-amber-800">
+              <h4 className="font-semibold text-sm mb-2 text-amber-900 dark:text-amber-100">Manual Data Entry Tips</h4>
+              <div className="space-y-1 text-xs text-amber-800 dark:text-amber-200">
+                <div>• Use the user submission form in the app for new music</div>
+                <div>• For bulk imports, use the SQL editor with INSERT statements</div>
+                <div>• Check existing data structure before adding new records</div>
+                <div>• Use UUIDs for ID fields (gen_random_uuid() function)</div>
+                <div>• Remember to link songs to artists via the song_artists table</div>
               </div>
             </div>
           </div>
