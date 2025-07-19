@@ -25,13 +25,54 @@ const MusicChatInterface = () => {
     {
       id: '1',
       type: 'assistant',
-      content: "Hi! I'm your AI music historian. Ask me anything about songs, artists, albums, or music history. I can tell you stories behind the music, explain influences, or help you discover new sounds!",
+      content: "Hi! I'm SonicSage, your AI music oracle. Ask me anything about songs, artists, albums, or music history. I can tell you stories behind the music, explain influences, or help you discover new sounds!",
       timestamp: new Date(),
     }
   ]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isPopulating, setIsPopulating] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Check if database has data
+  const [hasData, setHasData] = useState(true);
+
+  useEffect(() => {
+    checkDatabaseData();
+  }, []);
+
+  const checkDatabaseData = async () => {
+    try {
+      const { data } = await supabase.from('songs').select('id').limit(1);
+      setHasData(data && data.length > 0);
+    } catch (error) {
+      console.error('Error checking database:', error);
+      setHasData(false);
+    }
+  };
+
+  const populateDatabase = async () => {
+    setIsPopulating(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('populate-sample-data');
+      if (error) throw error;
+      console.log('Database populated:', data);
+      setHasData(true);
+      
+      // Add system message
+      const systemMessage: ChatMessage = {
+        id: Date.now().toString(),
+        type: 'assistant',
+        content: "Great! I've just populated the database with classic songs from The Beatles, Pink Floyd, Bob Dylan, Led Zeppelin, and David Bowie. Now ask me anything about these legendary artists and their music!",
+        timestamp: new Date(),
+      };
+      setMessages(prev => [...prev, systemMessage]);
+    } catch (error) {
+      console.error('Error populating database:', error);
+    } finally {
+      setIsPopulating(false);
+    }
+  };
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -48,20 +89,28 @@ const MusicChatInterface = () => {
     };
 
     setMessages(prev => [...prev, userMessage]);
+    const queryText = input;
     setInput('');
     setIsLoading(true);
 
     try {
+      console.log('Sending chat request:', queryText);
+      
       const { data, error } = await supabase.functions.invoke('music-chat', {
-        body: { query: input }
+        body: { query: queryText }
       });
 
-      if (error) throw error;
+      console.log('Chat response:', data, error);
+
+      if (error) {
+        console.error('Chat error:', error);
+        throw error;
+      }
 
       const assistantMessage: ChatMessage = {
         id: (Date.now() + 1).toString(),
         type: 'assistant',
-        content: data.answer,
+        content: data.answer || "I received your question but couldn't generate a response. Please try again.",
         timestamp: new Date(),
         sources: data.sources
       };
@@ -72,7 +121,7 @@ const MusicChatInterface = () => {
       const errorMessage: ChatMessage = {
         id: (Date.now() + 1).toString(),
         type: 'assistant',
-        content: "I'm having trouble accessing the music database right now. Please try again in a moment.",
+        content: `I apologize, but I'm having trouble connecting right now. The error was: ${error.message || 'Unknown error'}. Please try again in a moment.`,
         timestamp: new Date(),
       };
       setMessages(prev => [...prev, errorMessage]);
@@ -99,14 +148,27 @@ const MusicChatInterface = () => {
     <div className="max-w-4xl mx-auto h-[600px] flex flex-col">
       <Card className="flex-1 flex flex-col overflow-hidden">
         <div className="p-4 border-b border-border bg-gradient-to-r from-primary/10 to-accent/10">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center">
-              <Sparkles className="h-5 w-5 text-white" />
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center">
+                <Sparkles className="h-5 w-5 text-white" />
+              </div>
+              <div>
+                <h3 className="font-semibold">SonicSage</h3>
+                <p className="text-sm text-muted-foreground">Your AI music oracle</p>
+              </div>
             </div>
-            <div>
-              <h3 className="font-semibold">AI Music Historian</h3>
-              <p className="text-sm text-muted-foreground">Ask me anything about music!</p>
-            </div>
+            
+            {!hasData && (
+              <Button 
+                onClick={populateDatabase} 
+                disabled={isPopulating}
+                variant="outline"
+                size="sm"
+              >
+                {isPopulating ? 'Loading...' : 'Add Sample Music'}
+              </Button>
+            )}
           </div>
         </div>
 
