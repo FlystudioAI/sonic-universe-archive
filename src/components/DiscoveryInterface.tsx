@@ -146,9 +146,9 @@ const DiscoveryInterface = () => {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.8 }}
       >
-        <div className="space-y-4">
+        <div className="space-y-6">
           <motion.h1 
-            className="text-6xl font-bold bg-gradient-to-r from-primary via-accent to-primary bg-clip-text text-transparent neon-text"
+            className="text-7xl font-bold bg-gradient-to-r from-primary via-accent to-primary bg-clip-text text-transparent neon-text"
             animate={{ 
               backgroundPosition: ["0% 50%", "100% 50%", "0% 50%"],
             }}
@@ -158,12 +158,17 @@ const DiscoveryInterface = () => {
               ease: "linear" 
             }}
           >
-            Discover Music
+            Meet SonicSage
           </motion.h1>
-          <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-            The world's most comprehensive music discovery platform. 
-            Ask anything, find everything, explore endlessly.
+          <p className="text-2xl text-muted-foreground max-w-3xl mx-auto leading-relaxed">
+            The world's first <span className="text-accent font-semibold">conversational music intelligence</span>. 
+            Chat with our AI oracle about any song, artist, or musical moment in history.
           </p>
+          <div className="flex items-center justify-center gap-4 text-lg">
+            <Badge className="bg-accent/20 text-accent-foreground px-4 py-2">Beta</Badge>
+            <span className="text-muted-foreground">•</span>
+            <span className="text-primary font-medium">Powered by your music database</span>
+          </div>
         </div>
 
         {/* Enhanced Search Bar */}
