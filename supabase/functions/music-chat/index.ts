@@ -49,6 +49,11 @@ serve(async (req) => {
     });
 
     const embeddingData = await embeddingResponse.json();
+    
+    if (!embeddingData.data || !embeddingData.data[0]) {
+      throw new Error('Invalid embedding response from OpenAI');
+    }
+    
     const queryEmbedding = embeddingData.data[0].embedding;
 
     // 2. Search for relevant music context using vector similarity
