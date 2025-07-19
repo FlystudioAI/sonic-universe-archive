@@ -8,10 +8,11 @@ import LiveChartsSection from "@/components/LiveChartsSection";
 import MusicSubmissionForm from "@/components/MusicSubmissionForm";
 import MusicNewsSection from "@/components/MusicNewsSection";
 import MusicChartsSection from "@/components/MusicChartsSection";
+import GlobalMusicMap from "@/components/GlobalMusicMap";
 import Footer from "@/components/Footer";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Music, Search, Plus, Newspaper, BarChart3, Compass, MessageCircle } from "lucide-react";
+import { Music, Search, Plus, Newspaper, BarChart3, Compass, MessageCircle, Globe } from "lucide-react";
 
 const Index = () => {
   return (
@@ -25,7 +26,7 @@ const Index = () => {
         
         <div className="container mx-auto px-4 py-8">
           <Tabs defaultValue="sonic-sage" className="w-full">
-            <TabsList className="grid w-full grid-cols-7 mb-8">
+            <TabsList className="grid w-full grid-cols-8 mb-8">
               <TabsTrigger value="sonic-sage" className="flex items-center gap-2 bg-gradient-to-r from-primary to-accent text-primary-foreground">
                 <MessageCircle className="h-4 w-4" />
                 SonicSage
@@ -37,6 +38,10 @@ const Index = () => {
               <TabsTrigger value="search" className="flex items-center gap-2">
                 <Search className="h-4 w-4" />
                 Search
+              </TabsTrigger>
+              <TabsTrigger value="world-map" className="flex items-center gap-2">
+                <Globe className="h-4 w-4" />
+                World
               </TabsTrigger>
               <TabsTrigger value="charts" className="flex items-center gap-2">
                 <BarChart3 className="h-4 w-4" />
@@ -84,6 +89,10 @@ const Index = () => {
 
             <TabsContent value="search">
               <AISearchInterface />
+            </TabsContent>
+
+            <TabsContent value="world-map">
+              <GlobalMusicMap />
             </TabsContent>
 
             <TabsContent value="news">

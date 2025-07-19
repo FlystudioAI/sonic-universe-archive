@@ -8,10 +8,199 @@ const corsHeaders = {
 
 const supabase = createClient(
   Deno.env.get('SUPABASE_URL') ?? '',
-  Deno.env.get('SUPABASE_ANON_KEY') ?? ''
+  Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
 );
 
-const GOOGLE_API_KEY = Deno.env.get('GOOGLE_API_KEY');
+const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
+
+interface SearchAnalysis {
+  searchTerms: string[];
+  genres: string[];
+  moods: string[];
+  energy: string;
+  searchIntent: string;
+  instruments: string[];
+  themes: string[];
+  timeframe?: string;
+  location?: string;
+}
+
+async function analyzeSearchQuery(query: string): Promise<SearchAnalysis> {
+  try {
+    const systemPrompt = `You are a music search analysis AI. Analyze the user's query and extract musical characteristics, search intent, and relevant parameters. Respond ONLY with valid JSON matching this structure:
+{
+  "searchTerms": ["term1", "term2"],
+  "genres": ["genre1", "genre2"],
+  "moods": ["mood1", "mood2"],
+  "energy": "low|medium|high|very_high",
+  "searchIntent": "discovery|specific_song|artist_info|recommendation|mood_based",
+  "instruments": ["instrument1", "instrument2"],
+  "themes": ["theme1", "theme2"],
+  "timeframe": "1960s|1980s|2000s|recent|etc",
+  "location": "country/city if mentioned"
+}`;
+
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${OPENAI_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'gpt-3.5-turbo',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: query }
+        ],
+        temperature: 0.3,
+        max_tokens: 500
+      })
+    });
+
+    const data = await response.json();
+    const content = data.choices?.[0]?.message?.content;
+    
+    if (!content) {
+      throw new Error('No response from OpenAI');
+    }
+
+    return JSON.parse(content);
+  } catch (error) {
+    console.error('Query analysis error:', error);
+    return {
+      searchTerms: query.split(' '),
+      genres: [],
+      moods: [],
+      energy: 'medium',
+      searchIntent: 'discovery',
+      instruments: [],
+      themes: [],
+    };
+  }
+}
+
+async function searchDatabase(analysis: SearchAnalysis, filters: any = {}) {
+  let baseQuery = supabase
+    .from('songs')
+    .select(`
+      id,
+      title,
+      duration_ms,
+      release_date,
+      bpm,
+      song_key,
+      key_mode,
+      energy_level,
+      mood,
+      lyrics,
+      themes,
+      instruments,
+      description,
+      valence,
+      danceability,
+      albums (
+        title,
+        cover_art_url
+      ),
+      song_artists (
+        role,
+        artists (
+          name,
+          image_url
+        )
+      ),
+      song_genres (
+        is_primary,
+        genres (
+          name
+        )
+      )
+    `);
+
+  // Apply filters based on analysis
+  if (analysis.genres.length > 0) {
+    const { data: genreIds } = await supabase
+      .from('genres')
+      .select('id')
+      .in('name', analysis.genres);
+    
+    if (genreIds && genreIds.length > 0) {
+      baseQuery = baseQuery.in('song_genres.genre_id', genreIds.map(g => g.id));
+    }
+  }
+
+  if (analysis.moods.length > 0) {
+    baseQuery = baseQuery.in('mood', analysis.moods);
+  }
+
+  if (analysis.energy && analysis.energy !== 'medium') {
+    baseQuery = baseQuery.eq('energy_level', analysis.energy);
+  }
+
+  if (analysis.instruments.length > 0) {
+    baseQuery = baseQuery.overlaps('instruments', analysis.instruments);
+  }
+
+  if (analysis.themes.length > 0) {
+    baseQuery = baseQuery.overlaps('themes', analysis.themes);
+  }
+
+  // Text search across multiple fields
+  if (analysis.searchTerms.length > 0) {
+    const searchText = analysis.searchTerms.join(' | ');
+    baseQuery = baseQuery.textSearch('title,description,lyrics', searchText);
+  }
+
+  // Apply additional filters
+  if (filters.releaseYear) {
+    baseQuery = baseQuery.gte('release_date', `${filters.releaseYear}-01-01`);
+    baseQuery = baseQuery.lt('release_date', `${filters.releaseYear + 1}-01-01`);
+  }
+
+  if (filters.bpmRange) {
+    baseQuery = baseQuery.gte('bpm', filters.bpmRange.min);
+    baseQuery = baseQuery.lte('bpm', filters.bpmRange.max);
+  }
+
+  return baseQuery.limit(50);
+}
+
+async function generateSearchRecommendations(query: string, results: any[]): Promise<string[]> {
+  try {
+    const systemPrompt = `Based on the user's search query and results, suggest 3-5 alternative search terms or related queries that might help them discover more music. Return only a JSON array of strings.`;
+
+    const userPrompt = `Query: "${query}"
+Found ${results.length} results. Suggest related searches.`;
+
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${OPENAI_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'gpt-3.5-turbo',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt }
+        ],
+        temperature: 0.7,
+        max_tokens: 200
+      })
+    });
+
+    const data = await response.json();
+    const content = data.choices?.[0]?.message?.content;
+    
+    if (content) {
+      return JSON.parse(content);
+    }
+  } catch (error) {
+    console.error('Recommendations generation error:', error);
+  }
+  
+  return [];
+}
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -19,7 +208,7 @@ serve(async (req) => {
   }
 
   try {
-    console.log('Starting AI music search...');
+    console.log('Starting enhanced AI music search...');
     
     const { query, userId, searchType = 'natural_language', filters = {} } = await req.json();
     
@@ -42,214 +231,66 @@ serve(async (req) => {
         });
     }
 
-    // Use Gemini to analyze the search query and extract meaningful parameters
-    const geminiResponse = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=' + GOOGLE_API_KEY, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        contents: [{
-          parts: [{
-            text: `Analyze this music search query and extract search parameters. Return a JSON object with these fields:
-            - searchTerms: array of key search terms
-            - genres: array of music genres mentioned
-            - moods: array of moods (from: energetic, melancholic, uplifting, aggressive, peaceful, nostalgic, romantic, mysterious, playful, dramatic)
-            - energy: energy level (low, medium, high, very_high)
-            - bpmRange: object with min/max BPM if tempo mentioned
-            - timeRange: object with startYear/endYear if time period mentioned
-            - instruments: array of instruments mentioned
-            - themes: array of song themes/topics
-            - artistNames: array of artist names mentioned
-            - songFeatures: array of musical features (fast, slow, danceable, etc.)
-            - searchIntent: what the user is looking for (discover, find_specific, mood_based, etc.)
-            
-            Query: "${query}"
-            
-            Return only valid JSON, no explanation.`
-          }]
-        }],
-        generationConfig: {
-          temperature: 0.3,
-          maxOutputTokens: 1000,
-        }
-      })
-    });
+    // Analyze the search query with AI
+    const analysis = await analyzeSearchQuery(query);
+    console.log('Search analysis:', analysis);
 
-    const geminiData = await geminiResponse.json();
-    console.log('Gemini response:', geminiData);
-
-    let analysisResult = {};
-    try {
-      const analysisText = geminiData.candidates[0].content.parts[0].text;
-      analysisResult = JSON.parse(analysisText);
-    } catch (e) {
-      console.error('Error parsing Gemini response:', e);
-      analysisResult = { searchTerms: [query], searchIntent: 'general' };
-    }
-
-    console.log('Analysis result:', analysisResult);
-
-    // Build the database query based on AI analysis
-    let dbQuery = supabase
-      .from('songs')
-      .select(`
-        id,
-        title,
-        duration_ms,
-        release_date,
-        bpm,
-        song_key,
-        key_mode,
-        energy_level,
-        mood,
-        lyrics,
-        themes,
-        instruments,
-        description,
-        story_behind_song,
-        albums(title, cover_art_url),
-        song_artists(
-          role,
-          artists(name, image_url)
-        ),
-        song_genres(
-          is_primary,
-          genres(name)
-        )
-      `);
-
-    // Apply filters based on AI analysis
-    const analysis = analysisResult as any;
+    // Search the database based on analysis
+    const { data: songs, error } = await searchDatabase(analysis, filters);
     
-    // Text search across multiple fields
-    if (analysis.searchTerms && analysis.searchTerms.length > 0) {
-      const searchTerm = analysis.searchTerms.join(' ');
-      dbQuery = dbQuery.or(`title.ilike.%${searchTerm}%,lyrics.ilike.%${searchTerm}%,description.ilike.%${searchTerm}%`);
-    }
-
-    // Filter by mood
-    if (analysis.moods && analysis.moods.length > 0) {
-      dbQuery = dbQuery.in('mood', analysis.moods);
-    }
-
-    // Filter by energy level
-    if (analysis.energy) {
-      dbQuery = dbQuery.eq('energy_level', analysis.energy);
-    }
-
-    // Filter by BPM range
-    if (analysis.bpmRange) {
-      if (analysis.bpmRange.min) {
-        dbQuery = dbQuery.gte('bpm', analysis.bpmRange.min);
-      }
-      if (analysis.bpmRange.max) {
-        dbQuery = dbQuery.lte('bpm', analysis.bpmRange.max);
-      }
-    }
-
-    // Filter by time range
-    if (analysis.timeRange) {
-      if (analysis.timeRange.startYear) {
-        dbQuery = dbQuery.gte('release_date', `${analysis.timeRange.startYear}-01-01`);
-      }
-      if (analysis.timeRange.endYear) {
-        dbQuery = dbQuery.lte('release_date', `${analysis.timeRange.endYear}-12-31`);
-      }
-    }
-
-    // Filter by instruments
-    if (analysis.instruments && analysis.instruments.length > 0) {
-      dbQuery = dbQuery.overlaps('instruments', analysis.instruments);
-    }
-
-    // Filter by themes
-    if (analysis.themes && analysis.themes.length > 0) {
-      dbQuery = dbQuery.overlaps('themes', analysis.themes);
-    }
-
-    // Apply additional filters from frontend
-    if (filters.genres) {
-      // This would need a join query for genres
-    }
-
-    // Limit results
-    dbQuery = dbQuery.limit(50);
-
-    const { data: songs, error } = await dbQuery;
-
     if (error) {
-      console.error('Database error:', error);
-      return new Response(JSON.stringify({ error: 'Database query failed' }), {
+      console.error('Database search error:', error);
+      return new Response(JSON.stringify({ error: 'Search failed' }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
 
-    // Update search history with results count
-    if (userId) {
-      await supabase
-        .from('user_search_history')
-        .update({ results_count: songs?.length || 0 })
-        .eq('user_id', userId)
-        .eq('search_query', query)
-        .order('searched_at', { ascending: false })
-        .limit(1);
-    }
+    // Generate search recommendations
+    const recommendations = await generateSearchRecommendations(query, songs || []);
 
-    // Generate AI-powered recommendations based on search
-    let recommendations = [];
-    if (userId && songs && songs.length > 0) {
-      // Get user's listening history for personalized recommendations
-      const { data: userHistory } = await supabase
-        .from('user_listening_history')
-        .select('song_id, duration_listened_ms, completion_percentage')
-        .eq('user_id', userId)
-        .order('listened_at', { ascending: false })
-        .limit(100);
+    // Format results
+    const formattedSongs = (songs || []).map(song => ({
+      id: song.id,
+      title: song.title,
+      artist: song.song_artists?.[0]?.artists?.name || 'Unknown Artist',
+      album: song.albums?.title || 'Unknown Album',
+      albumArt: song.albums?.cover_art_url,
+      duration: song.duration_ms,
+      releaseDate: song.release_date,
+      genres: song.song_genres?.map(sg => sg.genres.name) || [],
+      mood: song.mood,
+      energy: song.energy_level,
+      bpm: song.bpm,
+      key: song.song_key,
+      keyMode: song.key_mode,
+      themes: song.themes || [],
+      instruments: song.instruments || [],
+      description: song.description,
+      valence: song.valence,
+      danceability: song.danceability
+    }));
 
-      // Use Gemini to generate personalized recommendations
-      const recommendationPrompt = `Based on the user's search for "${query}" and their listening history, suggest 5 additional songs they might like. Consider their preferences and the context of their search.
-      
-      Search results: ${songs.slice(0, 5).map(s => `${s.title} by ${s.song_artists?.[0]?.artists?.name}`).join(', ')}
-      
-      Return a JSON array of recommendation objects with: title, artist, reason (why recommended)`;
-
-      try {
-        const recResponse = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=' + GOOGLE_API_KEY, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: recommendationPrompt }] }],
-            generationConfig: { temperature: 0.7, maxOutputTokens: 800 }
-          })
-        });
-
-        const recData = await recResponse.json();
-        const recText = recData.candidates[0].content.parts[0].text;
-        recommendations = JSON.parse(recText);
-      } catch (e) {
-        console.error('Error generating recommendations:', e);
-      }
-    }
-
-    return new Response(JSON.stringify({
-      songs,
-      analysis: analysisResult,
+    const response = {
+      query,
+      analysis,
+      results: formattedSongs,
+      count: formattedSongs.length,
       recommendations,
-      searchMetadata: {
-        query,
-        resultsCount: songs?.length || 0,
-        searchType,
-        timestamp: new Date().toISOString()
-      }
-    }), {
+      searchType,
+      timestamp: new Date().toISOString()
+    };
+
+    return new Response(JSON.stringify(response), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
 
   } catch (error) {
-    console.error('Error in ai-music-search function:', error);
-    return new Response(JSON.stringify({ error: error.message }), {
+    console.error('AI music search error:', error);
+    return new Response(JSON.stringify({ 
+      error: 'Internal server error',
+      details: error.message 
+    }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
