@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { NewsService } from '@/newsFetcher/newsService';
 import { AISummarizer } from '@/summarizer/aiSummarizer';
+import { PodcastService } from '@/podcastGenerator/podcastService';
 import { useAuth } from '@/hooks/useAuth';
 import { NewsArticle } from '@/types';
 import { Badge } from '@/components/ui/badge';
@@ -16,7 +17,10 @@ import {
   Bookmark, 
   Zap,
   TrendingUp,
-  Eye
+  Eye,
+  Mic,
+  Crown,
+  Users
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -25,7 +29,9 @@ const FeedPage = () => {
   const { user, authService } = useAuth();
   const [newsService] = useState(new NewsService());
   const [aiSummarizer] = useState(new AISummarizer());
+  const [podcastService] = useState(new PodcastService());
   const [savedArticles, setSavedArticles] = useState<string[]>([]);
+  const [podcastGeneratingFor, setPodcastGeneratingFor] = useState<string | null>(null);
 
   // Fetch news articles
   const { data: articles = [], isLoading, error, refetch } = useQuery({
@@ -118,6 +124,59 @@ const FeedPage = () => {
     }
   };
 
+  const handleCreatePodcastFromArticle = async (article: NewsArticle) => {
+    if (!user) {
+      toast.error('Please sign in to create podcasts');
+      return;
+    }
+
+    if (user.subscriptionTier !== 'premium') {
+      toast.error('Custom podcast creation is a Premium feature. Upgrade to access this feature!');
+      return;
+    }
+
+    setPodcastGeneratingFor(article.id);
+    
+    try {
+      // Find related articles to create a more comprehensive podcast
+      const relatedArticles = articles
+        .filter(a => a.id !== article.id)
+        .filter(a => {
+          const titleSimilarity = article.tags.some(tag => 
+            a.title.toLowerCase().includes(tag.toLowerCase()) ||
+            a.tags.some(aTag => aTag.toLowerCase().includes(tag.toLowerCase()))
+          );
+          const sameTone = a.tone === article.tone;
+          return titleSimilarity || sameTone;
+        })
+        .slice(0, 2); // Add 2 related articles for context
+
+      const podcastStories = [article, ...relatedArticles];
+      
+      const customEpisode = await podcastService.generateCustomPodcast(
+        user, 
+        podcastStories, 
+        `Deep Dive: ${article.title.split(':')[0] || article.title.substring(0, 50)}...`
+      );
+      
+      toast.success('Custom podcast created! Check the CTRLcast page to listen.');
+      
+      // Track the interaction
+      await authService.trackUserInteraction({
+        itemId: article.id,
+        itemType: 'article',
+        actionType: 'share', // Using share to track podcast creation
+        metadata: { action: 'podcast_created', episodeId: customEpisode.id }
+      });
+      
+    } catch (error) {
+      console.error('Error creating podcast:', error);
+      toast.error('Failed to create podcast. Please try again.');
+    } finally {
+      setPodcastGeneratingFor(null);
+    }
+  };
+
   const getToneColor = (tone: NewsArticle['tone']) => {
     switch (tone) {
       case 'breaking': return 'bg-red-500/10 text-red-500 border-red-500/20';
@@ -171,6 +230,20 @@ const FeedPage = () => {
           <p className="text-muted-foreground">
             Latest GenAI developments curated by AI
           </p>
+          {user && (
+            <div className="flex items-center mt-2 space-x-2">
+              <Badge variant="outline" className="bg-blue-500/10 text-blue-500">
+                <Users className="h-3 w-3 mr-1" />
+                Personalized for you
+              </Badge>
+              {user.subscriptionTier === 'premium' && (
+                <Badge variant="outline" className="bg-purple-500/10 text-purple-500">
+                  <Mic className="h-3 w-3 mr-1" />
+                  Create podcasts from articles
+                </Badge>
+              )}
+            </div>
+          )}
         </div>
         <div className="flex items-center space-x-2">
           <Badge variant="secondary" className="bg-green-500/10 text-green-500">
@@ -195,11 +268,48 @@ const FeedPage = () => {
               <div>
                 <h3 className="font-medium">Free Tier - 10 stories per day</h3>
                 <p className="text-sm text-muted-foreground">
-                  Upgrade to Premium for unlimited access and no ads
+                  Upgrade to Premium for unlimited access, no ads, and custom podcast creation
                 </p>
               </div>
               <Button size="sm" className="bg-gradient-to-r from-amber-500 to-orange-500">
                 Upgrade
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Premium feature showcase for free users */}
+      {user?.subscriptionTier === 'free' && (
+        <Card className="border-purple-500/20 bg-gradient-to-r from-purple-500/5 to-pink-500/5">
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-start space-x-3">
+                <Mic className="h-6 w-6 text-purple-500 mt-1" />
+                <div>
+                  <h3 className="font-medium">Create Podcasts from Any Article</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Premium users can generate conversational AI podcasts from individual articles or collections of stories
+                  </p>
+                  <div className="flex items-center mt-2 space-x-4 text-xs">
+                    <span className="flex items-center">
+                      <Users className="h-3 w-3 mr-1" />
+                      3 AI hosts discuss
+                    </span>
+                    <span className="flex items-center">
+                      <Clock className="h-3 w-3 mr-1" />
+                      5-10 min episodes
+                    </span>
+                    <span className="flex items-center">
+                      <TrendingUp className="h-3 w-3 mr-1" />
+                      Deep analysis
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <Button className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600">
+                <Crown className="h-4 w-4 mr-2" />
+                Upgrade to Premium
               </Button>
             </div>
           </CardContent>
@@ -328,6 +438,26 @@ const FeedPage = () => {
                       <Share className="h-4 w-4 mr-1" />
                       Share
                     </Button>
+
+                    {/* Premium Feature: Create Podcast */}
+                    {user?.subscriptionTier === 'premium' && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleCreatePodcastFromArticle(article);
+                        }}
+                        disabled={podcastGeneratingFor === article.id}
+                        className="text-muted-foreground hover:text-purple-500"
+                      >
+                        <Mic className={cn(
+                          "h-4 w-4 mr-1",
+                          podcastGeneratingFor === article.id && "animate-pulse"
+                        )} />
+                        {podcastGeneratingFor === article.id ? 'Creating...' : 'Create Podcast'}
+                      </Button>
+                    )}
                   </div>
 
                   <Button 
